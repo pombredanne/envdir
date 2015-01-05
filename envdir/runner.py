@@ -6,9 +6,6 @@ import sys
 from .env import Env
 from .version import __version__
 
-# must have shell = True on Windows
-shellout = sys.platform == 'win32'
-
 
 class Response(Exception):
     def __init__(self, message='', status=0):
@@ -38,7 +35,10 @@ class Runner(object):
     def open(self, path=None, stacklevel=1):
         if path is None:
             frame = sys._getframe()
-            get_parent = lambda frame: frame.f_back
+
+            def get_parent(frame):
+                return frame.f_back
+
             for _ in range(stacklevel):
                 frame = get_parent(frame)
             if frame is not None:
@@ -49,36 +49,34 @@ class Runner(object):
                 path = 'envdir'
         return Env(self.path(path))
 
-    # for backward compatibility
-    def read(self, path=None):
-        env = self.open(path, stacklevel=2)
-        return env.read()
-
     def shell(self, name, *args):
         self.parser.set_usage(self.envshell_usage)
         self.parser.prog = 'envshell'
         options, args = self.parser.parse_args(list(args))
 
         if len(args) == 0:
-            raise Response("%s\nError: incorrect number of arguments" %
+            raise Response("%s\nError: incorrect number of arguments\n" %
                            (self.parser.get_usage()), 2)
 
         sys.stdout.write("Launching envshell for %s. "
                          "Type 'exit' or 'Ctrl+D' to return.\n" %
                          self.path(args[0]))
         sys.stdout.flush()
-        self.read(args[0])
+        self.open(args[0], 2)
 
-        shell = os.environ['SHELL']
+        if 'SHELL' in os.environ:
+            shell = os.environ['SHELL']
+        elif 'COMSPEC' in os.environ:
+            shell = os.environ['COMSPEC']
+        else:
+            raise Response('Unable to detect current environment shell')
+
         try:
-            subprocess.check_call([shell],
-                                  universal_newlines=True,
-                                  shell=shellout,
-                                  bufsize=0,
-                                  close_fds=True)
+            subprocess.call([shell])
         except OSError as err:
             if err.errno == 2:
-                raise Response("Unable to find shell %s" % shell, err.errno)
+                raise Response("Unable to find shell %s" % shell,
+                               status=err.errno)
             else:
                 raise Response("An error occurred: %s" % err,
                                status=err.errno)
@@ -94,7 +92,7 @@ class Runner(object):
             raise Response("%s\nError: incorrect number of arguments\n" %
                            (self.parser.get_usage()), 2)
 
-        self.read(args[0])
+        self.open(args[0], 2)
 
         # the args to call later
         args = args[1:]
@@ -104,24 +102,9 @@ class Runner(object):
             args = args[1:]
 
         try:
-            process = subprocess.Popen(args,
-                                       universal_newlines=True,
-                                       shell=shellout,
-                                       bufsize=0,
-                                       close_fds=True)
-            process.wait()
+            os.execvpe(args[0], args, os.environ)
         except OSError as err:
-            if err.errno == 2:
-                raise Response("Unable to find command %s" %
-                               args[0], err.errno)
-            else:
-                raise Response(status=err.errno)
-        except KeyboardInterrupt:
-            # first send mellow signal
-            process.terminate()
-            process.poll()
-            if process.returncode is None:
-                # still running, kill it
-                process.kill()
+            raise Response("Unable to run command %s: %s" %
+                           (args[0], err), status=err.errno)
 
-        raise Response(status=process.returncode)
+        raise Response()

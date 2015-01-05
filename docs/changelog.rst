@@ -1,6 +1,36 @@
 Changelog
 ---------
 
+0.7 (08/10/2014)
+^^^^^^^^^^^^^^^^
+
+* Use `exec` (`os.execvpe`) to replace the envdir process with the child
+  process (fixes #20).
+
+* Change `isenvvar()` to only check for `=` in var names.
+
+0.6.1 (12/23/2013)
+^^^^^^^^^^^^^^^^^^
+
+* Fixed handling SIGTERM signals to make sure all children of the forked
+  process are killed, too. Thanks to Horst Gutmann for the report and
+  help fixing it.
+
+0.6 (12/03/2013)
+^^^^^^^^^^^^^^^^
+
+* Rewrote tests with pytest.
+
+* Vastly extended Python API.
+
+* Added Sphinx based docs: http://envdir.readthedocs.org/
+
+* Fixed killing child process when capturing keyboard interrupt.
+
+* Added standalone script based on PEPs 441 and 397, compatible with
+  Python Launcher for Windows. See the installation instructions for more
+  info.
+
 0.5 (09/22/2013)
 ^^^^^^^^^^^^^^^^
 
